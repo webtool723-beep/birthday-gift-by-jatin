@@ -361,23 +361,34 @@
       lyricsContainer.appendChild(p);
     });
 
-    function playWithFadeIn() {
-      audio.volume = 0;
-      audio.currentTime = 193;
+    function playAudio(fade = true) {
       audio.isFadingOut = false;
-      audio.play().then(() => {
-        document.getElementById('audio-icon').innerText = 'volume_up';
-        let vol = 0;
-        const fadeIn = setInterval(() => {
-          vol += 0.05;
-          if (vol >= 1) {
-            audio.volume = 1;
-            clearInterval(fadeIn);
-          } else {
-            audio.volume = vol;
-          }
-        }, 100);
-      }).catch(e => console.log("Autoplay prevented:", e));
+      
+      // Only set currentTime if it's near 0 (initial load) or being reset by the loop
+      // Actually we always want it to be 193 when this function is called
+      audio.currentTime = 193;
+      
+      if (fade) {
+        audio.volume = 0;
+        audio.play().then(() => {
+          document.getElementById('audio-icon').innerText = 'volume_up';
+          let vol = 0;
+          const fadeIn = setInterval(() => {
+            vol += 0.05;
+            if (vol >= 1) {
+              audio.volume = 1;
+              clearInterval(fadeIn);
+            } else {
+              audio.volume = vol;
+            }
+          }, 100);
+        }).catch(e => console.log("Autoplay prevented:", e));
+      } else {
+        audio.volume = 1;
+        audio.play().then(() => {
+          document.getElementById('audio-icon').innerText = 'volume_up';
+        }).catch(e => console.log("Autoplay prevented:", e));
+      }
     }
 
     // Bulletproof loop triggers if audio naturally ends
@@ -388,13 +399,13 @@
       if (!audio.isFadingOut) {
         audio.isFadingOut = true;
         setTimeout(() => {
-          playWithFadeIn();
+          playAudio(false);
         }, 3000);
       }
     });
 
     // Attempt to auto-play the song as soon as the page loads
-    document.addEventListener('DOMContentLoaded', playWithFadeIn);
+    document.addEventListener('DOMContentLoaded', () => playAudio(true));
 
     function openGift() {
       // Request Fullscreen on user interaction
@@ -418,7 +429,7 @@
       
       // Only trigger fade-in if it isn't already playing from page load
       if (audio.paused) {
-        playWithFadeIn();
+        playAudio(true);
       }
     }
 
@@ -570,7 +581,7 @@
             audio.currentTime = 193;
             // Wait 3 seconds, then Loop!
             setTimeout(() => {
-              playWithFadeIn();
+              playAudio(false);
             }, 3000);
           } else {
             audio.volume = vol;
@@ -580,15 +591,15 @@
       
       // Fallback loop exactly at 5:41 (341 seconds)
       if (time >= 341) {
-        if (!audio.isFadingOut) {
-          audio.isFadingOut = true;
-          audio.volume = 0;
-          audio.pause();
-          audio.currentTime = 193;
-          setTimeout(() => {
-            playWithFadeIn();
-          }, 3000);
-        }
+          if (!audio.isFadingOut) {
+            audio.isFadingOut = true;
+            audio.volume = 0;
+            audio.pause();
+            audio.currentTime = 193;
+            setTimeout(() => {
+              playAudio(false);
+            }, 3000);
+          }
         return;
       }
       
