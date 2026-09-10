@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Interactive Hanging Evil-Eye (🧿) 2D Omnidirectional Physics Component</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    code, pre {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ==========================================================================
+       HANGING EVIL-EYE 2D COMPONENT STYLES (Namespaced: hanging-eye-*)
+       ========================================================================== */
+    .hanging-eye-root {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 9999;
+      overflow: visible;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Fixed ceiling mount bracket */
+    .hanging-eye-mount {
+      position: absolute;
+      transform: translate(-50%, 0);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .hanging-eye-mount-cap {
+      width: 24px;
+      height: 7px;
+      background: linear-gradient(180deg, #d4af37 0%, #aa8420 50%, #685012 100%);
+      border-radius: 4px 4px 1px 1px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+    }
+    .hanging-eye-mount-ring {
+      width: 8px;
+      height: 9px;
+      border: 2px solid #caa030;
+      border-radius: 50%;
+      margin-top: -2px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    }
+
+    /* SVG Canvas for dynamic omnidirectional string rendering */
+    .hanging-eye-svg-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    /* Freely positioned 2D charm container anchored exactly at cord attachment point */
+    .hanging-eye-charm-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      will-change: transform;
+      perspective: 800px;
+    }
+
+    /* Rotational hanger arm anchored at (0, 0) connecting cord cleanly to the charm */
+    .hanging-eye-hanger {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    /* Decorative cap & loop connecting thread to charm */
+    .hanging-eye-collar {
+      width: 12px;
+      height: 11px;
+      margin-top: -1px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      z-index: 4;
+    }
+    .hanging-eye-collar-loop {
+      width: 6px;
+      height: 5px;
+      border: 1.5px solid #ffd875;
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+    .hanging-eye-collar-cap {
+      width: 13px;
+      height: 6px;
+      margin-top: -1px;
+      background: linear-gradient(180deg, #ffd875 0%, #aa821c 60%, #634b0d 100%);
+      border-radius: 3px 3px 1px 1px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    }
+
+    /* Charm interactive hit wrapper centered below the attachment collar */
+    .hanging-eye-charm-hitbox {
+      pointer-events: auto;
+      cursor: grab;
+      touch-action: none;
+      border-radius: 50%;
+      position: relative;
+      margin-top: -2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-style: preserve-3d;
+      transition: filter 0.15s ease-out;
+    }
+    .hanging-eye-charm-hitbox:active,
+    .hanging-eye-charm-hitbox.is-dragging {
+      cursor: grabbing;
+    }
+
+    /* Polished glass evil-eye visual rendering with 3D tilt */
+    .hanging-eye-charm-body {
+      position: relative;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      will-change: transform, box-shadow;
+      transform-style: preserve-3d;
+      transition: transform 0.05s ease-out;
+    }
+
+    /* SVG Realistic Nazar Boncuğu */
+    .hanging-eye-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      filter: drop-shadow(0 12px 22px rgba(10, 30, 80, 0.42))
+              drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+      transition: filter 0.15s ease-out;
+    }
+    .hanging-eye-charm-hitbox:hover .hanging-eye-svg {
+      filter: drop-shadow(0 16px 28px rgba(10, 50, 140, 0.52))
+              drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+    }
+    .hanging-eye-charm-hitbox.is-dragging .hanging-eye-svg {
+      filter: drop-shadow(0 20px 36px rgba(7, 30, 95, 0.6))
+              drop-shadow(0 6px 14px rgba(0, 0, 0, 0.4));
+    }
+
+    /* Subtle touch ripples / feedback cues */
+    .hanging-eye-sparkle {
+      position: absolute;
+      pointer-events: none;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(130,210,255,0.45) 55%, transparent 100%);
+      animation: eyeSparklePop 0.55s ease-out forwards;
+      z-index: 20;
+    }
+    @keyframes eyeSparklePop {
+      0% { transform: scale(0.2); opacity: 1; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-x-hidden selection:bg-blue-500 selection:text-white">
+<!-- Background decorative grid / lighting -->
+<div class="fixed inset-0 pointer-events-none opacity-40 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/30 via-slate-950/0 to-transparent"></div>
+<div class="fixed inset-0 pointer-events-none bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
+<!-- Main Website Content Frame -->
+<div class="relative z-10 max-w-6xl mx-auto px-6 py-12 lg:py-16">
+<!-- Header / Brand -->
+<header class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-6 mb-12">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-xl shadow-lg shadow-blue-500/10">
+          🧿
+        </div>
+<div>
+<h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            Nazar Physical Pendulum <span class="text-xs font-mono px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-400/30 text-blue-300">v3.0 2D Omnidirectional</span>
+</h1>
+<p class="text-xs text-slate-400">360° Elastic-Tether Physics with 2D Pointer Impulse &amp; 3D Gyroscopic Tilt</p>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-2">
+<button class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 rounded-lg border border-slate-700 transition" id="btn-impulse-random">
+          ⚡ Flick Random
+        </button>
+<button class="px-3 py-1.5 text-xs font-medium bg-indigo-950/60 hover:bg-indigo-900/60 active:scale-95 text-indigo-300 rounded-lg border border-indigo-700/50 transition" id="btn-impulse-swirl">
+          🌀 Swirl Orbit
+        </button>
+<button class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 rounded-lg border border-slate-700 transition" id="btn-impulse-snap">
+          🏹 Pull &amp; Snap
+        </button>
+<button class="px-3 py-1.5 text-xs font-medium bg-blue-600/20 hover:bg-blue-600/30 active:scale-95 text-blue-300 rounded-lg border border-blue-500/30 transition" id="btn-reset-charm">
+          Settle Center
+        </button>
+</div>
+</header>
+<!-- Hero / Showcase introduction -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-16">
+<div class="lg:col-span-7 space-y-5">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium">
+<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          Drag the charm in ANY direction: orbit, swirl, slingshot, or swing 360°!
+        </div>
+<h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
+          Physical hanging <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400">🧿 evil-eye</span> charm with omnidirectional 2D physics.
+        </h2>
+<p class="text-slate-300 text-base leading-relaxed">
+          Upgraded to full 2D space mechanics. Move and launch the amulet anywhere across full 360° space—pull it diagonally, swirl circular orbits, or compress and release like a slingshot. Coupled with elastic spring-tether restoration, air friction damping, vector pointer momentum transfer, and dynamic 3D perspective pitch/roll.
+        </p>
+<!-- Live Telemetry Card -->
+<div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 shadow-xl backdrop-blur-sm grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+<div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60">
+<span class="text-[11px] font-mono uppercase tracking-wider text-slate-400 block mb-1">Pos (ΔX, ΔY)</span>
+<span class="text-xs font-bold font-mono text-blue-400" id="tele-pos">0px, 140px</span>
+</div>
+<div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60">
+<span class="text-[11px] font-mono uppercase tracking-wider text-slate-400 block mb-1">Velocity (|v|)</span>
+<span class="text-xs font-bold font-mono text-emerald-400" id="tele-velocity">0 px/s</span>
+</div>
+<div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60">
+<span class="text-[11px] font-mono uppercase tracking-wider text-slate-400 block mb-1">Angle (θ)</span>
+<span class="text-xs font-bold font-mono text-indigo-300" id="tele-angle">0.0°</span>
+</div>
+<div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60">
+<span class="text-[11px] font-mono uppercase tracking-wider text-slate-400 block mb-1">Physics State</span>
+<span class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300 inline-block" id="tele-state">Idle Sway</span>
+</div>
+<div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60 col-span-2 sm:col-span-1">
+<span class="text-[11px] font-mono uppercase tracking-wider text-slate-400 block mb-1">Render FPS</span>
+<span class="text-xs font-bold font-mono text-amber-400" id="tele-fps">60 FPS</span>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-3 pt-2">
+<a class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-sm font-semibold shadow-lg shadow-blue-600/25 transition" href="#integration-guide">
+            View 2D Integration Code
+          </a>
+<a class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-sm font-medium border border-slate-700 transition" href="#interactive-controls">
+            Live 2D Tuner
+          </a>
+</div>
+</div>
+<!-- Quick Interactive Feature Pills -->
+<div class="lg:col-span-5 space-y-4">
+<div class="p-5 rounded-2xl bg-gradient-to-br from-slate-900/80 to-slate-900/40 border border-slate-800/80 space-y-4 shadow-lg">
+<h3 class="text-sm font-bold uppercase tracking-wider text-slate-400">2D Mechanical Highlights</h3>
+<div class="space-y-3">
+<div class="flex items-start gap-3 p-3 rounded-xl bg-slate-950/60 border border-slate-800/50">
+<div class="p-2 rounded-lg bg-blue-500/10 text-blue-400 text-base">🌐</div>
+<div>
+<h4 class="text-sm font-semibold text-white">Full 360° Omnidirectional Freedom</h4>
+<p class="text-xs text-slate-400 mt-0.5">Not constrained to left/right swinging. Pull it up, down, diagonally, or give it circular angular momentum for smooth orbital precessions.</p>
+</div>
+</div>
+<div class="flex items-start gap-3 p-3 rounded-xl bg-slate-950/60 border border-slate-800/50">
+<div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-base">🪢</div>
+<div>
+<h4 class="text-sm font-semibold text-white">Elastic Tether &amp; Dynamic SVG Cord</h4>
+<p class="text-xs text-slate-400 mt-0.5">The braided gold cord renders dynamically between the ceiling anchor and amulet center, flexing, rotating, and stretching with natural spring tension.</p>
+</div>
+</div>
+<div class="flex items-start gap-3 p-3 rounded-xl bg-slate-950/60 border border-slate-800/50">
+<div class="p-2 rounded-lg bg-amber-500/10 text-amber-400 text-base">🪙</div>
+<div>
+<h4 class="text-sm font-semibold text-white">Tactile 3D Perspective Tilt</h4>
+<p class="text-xs text-slate-400 mt-0.5">As the charm moves rapidly, gyroscopic pitch (rotateX) and roll (rotateY/Z) react to 2D velocity vectors for high physical presence.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Interactive Config Controls Section -->
+<section class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 mb-16 space-y-6" id="interactive-controls">
+<div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+<div>
+<h3 class="text-lg font-bold text-white">Live 2D Physics Tuning &amp; Configuration</h3>
+<p class="text-xs text-slate-400">Modify any 2D vector parameter in real-time to test elastic tension, gravity, damping, and 3D tilt dynamics.</p>
+</div>
+<button class="text-xs font-mono text-slate-400 hover:text-white underline" id="btn-reset-config">
+          Restore Defaults
+        </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- String Rest Length -->
+<div class="space-y-2">
+<div class="flex justify-between text-xs">
+<label class="font-medium text-slate-300" for="cfg-restLength">String Rest Length (L₀)</label>
+<span class="font-mono text-indigo-400" id="val-restLength">140px</span>
+</div>
+<input class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" id="cfg-restLength" max="300" min="60" step="5" type="range" value="140"/>
+<p class="text-[11px] text-slate-500">Equilibrium hanging distance from ceiling mount.</p>
+</div>
+<!-- Spring Stiffness -->
+<div class="space-y-2">
+<div class="flex justify-between text-xs">
+<label class="font-medium text-slate-300" for="cfg-stiffness">Elastic Spring Stiffness (k)</label>
+<span class="font-mono text-blue-400" id="val-stiffness">42</span>
+</div>
+<input class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" id="cfg-stiffness" max="150" min="10" step="2" type="range" value="42"/>
+<p class="text-[11px] text-slate-500">Restoration strength towards rest length (higher = stiffer tether).</p>
+</div>
+<!-- Gravity -->
+<div class="space-y-2">
+<div class="flex justify-between text-xs">
+<label class="font-medium text-slate-300" for="cfg-gravity">Gravity Constant (g)</label>
+<span class="font-mono text-sky-400" id="val-gravity">980</span>
+</div>
+<input class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500" id="cfg-gravity" max="2500" min="150" step="50" type="range" value="980"/>
+<p class="text-[11px] text-slate-500">Downward acceleration vector [0, g].</p>
+</div>
+<!-- Damping -->
+<div class="space-y-2">
+<div class="flex justify-between text-xs">
+<label class="font-medium text-slate-300" for="cfg-damping">Air Damping (Friction)</label>
+<span class="font-mono text-emerald-400" id="val-damping">0.988</span>
+</div>
+<input class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500" id="cfg-damping" max="0.999" min="0.920" step="0.001" type="range" value="0.988"/>
+<p class="text-[11px] text-slate-500">Decay multiplier applied to (vx, vy) per tick.</p>
+</div>
+<!-- 3D Tilt Sensitivity -->
+<div class="space-y-2">
+<div class="flex justify-between text-xs">
+<label class="font-medium text-slate-300" for="cfg-tilt">3D Tilt Sensitivity</label>
+<span class="font-mono text-purple-400" id="val-tilt">0.045</span>
+</div>
+<input class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500" id="cfg-tilt" max="0.10" min="0.0" step="0.005" type="range" value="0.045"/>
+<p class="text-[11px] text-slate-500">Perspective rotation (pitch/roll) based on 2D velocity.</p>
+</div>
+<!-- Charm Size -->
+<div class="space-y-2">
+<div class="flex justify-between text-xs">
+<label class="font-medium text-slate-300" for="cfg-size">Charm Diameter (px)</label>
+<span class="font-mono text-amber-400" id="val-size">68px</span>
+</div>
+<input class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500" id="cfg-size" max="110" min="44" step="2" type="range" value="68"/>
+<p class="text-[11px] text-slate-500">Visual glass Nazar amulet diameter.</p>
+</div>
+<!-- Anchor Position Selector & Idle -->
+<div class="space-y-2 md:col-span-2 lg:col-span-3 pt-2 border-t border-slate-800/80">
+<div class="flex flex-wrap items-center justify-between gap-4">
+<div class="flex items-center gap-2">
+<span class="text-xs font-medium text-slate-300">Anchor Mount Location:</span>
+<div class="inline-flex rounded-lg bg-slate-900 border border-slate-700/60 p-1 gap-1">
+<button class="btn-pos-switch px-3 py-1 text-xs font-medium rounded-md bg-slate-800 text-slate-300 hover:bg-slate-700" data-anchor="top-left">Top-Left</button>
+<button class="btn-pos-switch px-3 py-1 text-xs font-medium rounded-md bg-slate-800 text-slate-300 hover:bg-slate-700" data-anchor="top-center">Top-Center</button>
+<button class="btn-pos-switch active-pos px-3 py-1 text-xs font-medium rounded-md bg-blue-600 text-white shadow-sm" data-anchor="top-right">Top-Right</button>
+</div>
+</div>
+<label class="inline-flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+<input checked="" class="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" id="cfg-idle" type="checkbox"/>
+<span>Enable 2D Ambient Lissajous Drift</span>
+</label>
+</div>
+</div>
+</div>
+</section>
+<!-- Integration & Code Docs Section -->
+<section class="space-y-8 mb-20" id="integration-guide">
+<div class="border-b border-slate-800 pb-4">
+<h3 class="text-2xl font-bold text-white tracking-tight">Integration &amp; 2D Architecture Guide</h3>
+<p class="text-sm text-slate-400 mt-1">Self-contained 2D vector integrator combining elastic tether tension, Cartesian pointer velocity tracking, and SVG thread rendering.</p>
+</div>
+<!-- 3-Step Setup -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+<div class="text-xs font-mono font-bold text-blue-400">STEP 1</div>
+<h4 class="text-base font-semibold text-white">Full 2D Freedom</h4>
+<p class="text-xs text-slate-400">Charm position is represented by Cartesian vector $(x, y)$ rather than a 1D scalar angle, allowing free 360° motion.</p>
+</div>
+<div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+<div class="text-xs font-mono font-bold text-blue-400">STEP 2</div>
+<h4 class="text-base font-semibold text-white">Vector Tether Forces</h4>
+<p class="text-xs text-slate-400">Calculates spring tension $T = k \cdot (r - L_0) \cdot \hat{u}$ plus centripetal constraint and downward gravity vector $\vec{g} = (0, 980)$.</p>
+</div>
+<div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+<div class="text-xs font-mono font-bold text-blue-400">STEP 3</div>
+<h4 class="text-base font-semibold text-white">Dynamic SVG Thread</h4>
+<p class="text-xs text-slate-400">Cord dynamically draws between ceiling anchor and collar with intermediate golden brass bead at proportional distance.</p>
+</div>
+</div>
+<!-- Code Snippet Container -->
+<div class="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden shadow-2xl">
+<div class="flex items-center justify-between px-6 py-3 bg-slate-950 border-b border-slate-800 text-xs">
+<span class="font-mono text-slate-400 flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            hanging-eye-2d.js (Vector Integrator Core)
+          </span>
+<span class="text-slate-500 font-mono">Vanilla JS • 360° Free Space</span>
+</div>
+<div class="p-6 overflow-x-auto max-h-[460px] text-xs font-mono text-slate-300 leading-relaxed space-y-1">
+<pre><span class="text-slate-500">// 1. 2D VECTOR PENDULUM / ELASTIC TETHER INTEGRATOR</span>
+<span class="text-purple-400">function</span> <span class="text-blue-400">step2DPhysics</span>(dt) {
+  <span class="text-purple-400">if</span> (state.isDragging) <span class="text-purple-400">return</span>;
+
+  <span class="text-slate-500">// Vector from anchor to charm attachment point</span>
+  <span class="text-purple-400">const</span> dx = state.x - anchor.x;
+  <span class="text-purple-400">const</span> dy = state.y - anchor.y;
+  <span class="text-purple-400">const</span> dist = Math.<span class="text-blue-400">hypot</span>(dx, dy) || <span class="text-emerald-400">1</span>;
+  <span class="text-purple-400">const</span> nx = dx / dist, ny = dy / dist; <span class="text-slate-500">// Unit direction vector</span>
+
+  <span class="text-slate-500">// Downward gravity force</span>
+  <span class="text-purple-400">let</span> fx = <span class="text-emerald-400">0</span>;
+  <span class="text-purple-400">let</span> fy = config.gravity;
+
+  <span class="text-slate-500">// Elastic string tension towards rest length L0</span>
+  <span class="text-purple-400">const</span> deltaL = dist - config.restLength;
+  <span class="text-purple-400">const</span> tension = (deltaL &gt; <span class="text-emerald-400">0</span>) ? deltaL * config.stiffness : deltaL * (config.stiffness * <span class="text-emerald-400">0.25</span>);
+
+  <span class="text-slate-500">// Apply restoring tension along tether line</span>
+  fx += -tension * nx;
+  fy += -tension * ny;
+
+  <span class="text-slate-500">// Update 2D velocity &amp; position with damping</span>
+  state.vx = (state.vx + fx * dt) * Math.<span class="text-blue-400">pow</span>(config.damping, dt * <span class="text-emerald-400">60</span>);
+  state.vy = (state.vy + fy * dt) * Math.<span class="text-blue-400">pow</span>(config.damping, dt * <span class="text-emerald-400">60</span>);
+  state.x += state.vx * dt;
+  state.y += state.vy * dt;
+
+  <span class="text-slate-500">// Render dynamic thread line exactly from anchor to attachment loop</span>
+  svgThreadLine.<span class="text-blue-400">setAttribute</span>(<span class="text-emerald-300">'x2'</span>, state.x);
+  svgThreadLine.<span class="text-blue-400">setAttribute</span>(<span class="text-emerald-300">'y2'</span>, state.y);
+}</pre>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="border-t border-slate-800/80 pt-8 pb-12 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
+<p>Self-contained component with SVG Nazar vector graphics and touch-action isolation.</p>
+<p>ARIA-friendly: decorative elements marked with <code class="text-slate-400">aria-hidden="true"</code>.</p>
+</footer>
+</div>
+<!-- ==========================================================================
+       HANGING EVIL-EYE 2D COMPONENT (DOM HIERARCHY)
+       ========================================================================== -->
+<aside aria-hidden="true" class="hanging-eye-root" id="hanging-eye-root">
+<!-- Ceiling anchor mount -->
+<div class="hanging-eye-mount" id="hanging-eye-mount">
+<div class="hanging-eye-mount-cap"></div>
+<div class="hanging-eye-mount-ring"></div>
+</div>
+<!-- Full-screen vector canvas for dynamic 360 string & bead -->
+<svg class="hanging-eye-svg-canvas" id="hanging-eye-svg-canvas">
+<defs>
+<!-- Braided silk & brass thread gradient -->
+<lineargradient id="threadGrad" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#caa030"></stop>
+<stop offset="40%" stop-color="#fff2b2"></stop>
+<stop offset="70%" stop-color="#b28820"></stop>
+<stop offset="100%" stop-color="#725510"></stop>
+</lineargradient>
+<!-- Brass bead radial shading -->
+<radialgradient cx="35%" cy="30%" id="beadGrad" r="65%">
+<stop offset="0%" stop-color="#ffffff"></stop>
+<stop offset="35%" stop-color="#ffd875"></stop>
+<stop offset="75%" stop-color="#aa821c"></stop>
+<stop offset="100%" stop-color="#553e08"></stop>
+</radialgradient>
+<filter height="140%" id="threadGlow" width="140%" x="-20%" y="-20%">
+<fedropshadow dx="0" dy="1" flood-color="#000000" flood-opacity="0.5" stddeviation="1"></fedropshadow>
+</filter>
+</defs>
+<!-- Braided elastic string line -->
+<line filter="url(#threadGlow)" id="eye-tether-line" stroke="url(#threadGrad)" stroke-linecap="round" stroke-width="2" x1="0" x2="0" y1="0" y2="0"></line>
+<!-- Midway ornamental brass bead -->
+<circle cx="0" cy="0" fill="url(#beadGrad)" id="eye-tether-bead" r="3.2" stroke="#684f10" stroke-width="0.75"></circle>
+</svg>
+<!-- The freely moving 2D charm body container: Origin (0,0) matches cord termination point -->
+<div class="hanging-eye-charm-container" id="hanging-eye-container">
+<!-- Hanger wrapper rotating naturally with cord direction -->
+<div class="hanging-eye-hanger" id="hanging-eye-hanger">
+<!-- Brass collar connector with eyelet loop touching the cord -->
+<div class="hanging-eye-collar">
+<div class="hanging-eye-collar-loop"></div>
+<div class="hanging-eye-collar-cap"></div>
+</div>
+<!-- Touch hit box and visual charm -->
+<div class="hanging-eye-charm-hitbox" id="hanging-eye-hitbox" title="Drag me in any direction!">
+<div class="hanging-eye-charm-body" id="hanging-eye-body">
+<!-- Scalable Vector Nazar Charm (Glass-like depth and highlights) -->
+<svg class="hanging-eye-svg" viewbox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<!-- Deep Royal Blue Outer Glass -->
+<radialgradient cx="38%" cy="32%" id="nazarOuter" r="65%">
+<stop offset="0%" stop-color="#2a72e5"></stop>
+<stop offset="45%" stop-color="#0e3a9c"></stop>
+<stop offset="85%" stop-color="#081e59"></stop>
+<stop offset="100%" stop-color="#040e2b"></stop>
+</radialgradient>
+<!-- Ceramic White Ring -->
+<radialgradient cx="42%" cy="38%" id="nazarWhite" r="60%">
+<stop offset="0%" stop-color="#ffffff"></stop>
+<stop offset="70%" stop-color="#f0f4fc"></stop>
+<stop offset="100%" stop-color="#d5e1f7"></stop>
+</radialgradient>
+<!-- Vibrant Cyan Iris -->
+<radialgradient cx="40%" cy="35%" id="nazarCyan" r="60%">
+<stop offset="0%" stop-color="#7fe5ff"></stop>
+<stop offset="45%" stop-color="#14b8e6"></stop>
+<stop offset="90%" stop-color="#087aa0"></stop>
+<stop offset="100%" stop-color="#044d66"></stop>
+</radialgradient>
+<!-- Deep Pupil -->
+<radialgradient cx="42%" cy="38%" id="nazarPupil" r="55%">
+<stop offset="0%" stop-color="#222222"></stop>
+<stop offset="75%" stop-color="#0a0a0a"></stop>
+<stop offset="100%" stop-color="#000000"></stop>
+</radialgradient>
+<!-- Specular Curved Glass Glint -->
+<lineargradient id="nazarHighlight" x1="0%" x2="50%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"></stop>
+<stop offset="30%" stop-color="#ffffff" stop-opacity="0.35"></stop>
+<stop offset="100%" stop-color="#ffffff" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<!-- Base Outer Royal Blue Disc -->
+<circle cx="50" cy="50" fill="url(#nazarOuter)" r="48" stroke="#09215e" stroke-width="1.5"></circle>
+<!-- White Ring -->
+<circle cx="50.5" cy="50" fill="url(#nazarWhite)" r="33.5"></circle>
+<!-- Sky Blue Iris -->
+<circle cx="50.5" cy="50" fill="url(#nazarCyan)" r="22"></circle>
+<!-- Obsidian Pupil -->
+<circle cx="50.5" cy="50" fill="url(#nazarPupil)" r="11"></circle>
+<!-- Specular Reflection Highlight -->
+<ellipse cx="38" cy="30" fill="url(#nazarHighlight)" pointer-events="none" rx="14" ry="7.5" transform="rotate(-28 38 30)"></ellipse>
+<circle cx="64" cy="65" fill="#ffffff" opacity="0.35" pointer-events="none" r="3"></circle>
+</svg>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- ==========================================================================
+       2D OMNIDIRECTIONAL PHYSICS ENGINE & INTERACTION LOGIC
+       ========================================================================== -->
+<script>
+    /**
+     * Physical Hanging Evil-Eye (🧿) 2D Component Controller
+     * Full 360° Cartesian space simulation with elastic-tether physics,
+     * pointer momentum transfer, and dynamic SVG thread rendering.
+     */
+    class HangingEvilEye2D {
+      constructor(customConfig = {}) {
+        this.config = {
+          size: 68,                 // Charm diameter in px
+          restLength: 140,          // Natural resting cord length (px)
+          stiffness: 42,            // Spring restoration tension constant
+          gravity: 980,             // Gravitational downward acceleration (px/s²)
+          damping: 0.988,           // Velocity decay factor per tick
+          tiltSensitivity: 0.045,   // 3D perspective pitch & roll factor
+          idleMotion: true,         // Natural 2D atmospheric swirl
+          anchorPosition: 'top-right', // 'top-right' | 'top-center' | 'top-left' | {x, y}
+          zIndex: 9999,
+          ...customConfig
+        };
+
+        // DOM elements
+        this.dom = {
+          root: document.getElementById('hanging-eye-root'),
+          mount: document.getElementById('hanging-eye-mount'),
+          canvas: document.getElementById('hanging-eye-svg-canvas'),
+          tetherLine: document.getElementById('eye-tether-line'),
+          tetherBead: document.getElementById('eye-tether-bead'),
+          charmContainer: document.getElementById('hanging-eye-container'),
+          hanger: document.getElementById('hanging-eye-hanger'),
+          hitbox: document.getElementById('hanging-eye-hitbox'),
+          charmBody: document.getElementById('hanging-eye-body')
+        };
+
+        // Anchor coordinates
+        this.anchor = { x: 0, y: 0 };
+
+        // 2D Cartesian physical state (attachment point: where cord connects to the collar)
+        this.state = {
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          idleTime: 0,
+          isDragging: false
+        };
+
+        // 2D Interaction tracking
+        this.interaction = {
+          activePointerId: null,
+          dragOffsetX: 0,
+          dragOffsetY: 0,
+          pointerSamples: [] // Stores [{ x, y, time }] for 2D velocity vector derivation
+        };
+
+        // Performance & Telemetry
+        this.lastTime = performance.now();
+        this.fpsCounter = { count: 0, lastCheck: performance.now(), fps: 60 };
+
+        this.telemetry = {
+          pos: document.getElementById('tele-pos'),
+          velocity: document.getElementById('tele-velocity'),
+          angle: document.getElementById('tele-angle'),
+          state: document.getElementById('tele-state'),
+          fps: document.getElementById('tele-fps')
+        };
+
+        this.init();
+      }
+
+      init() {
+        this.applyStyling();
+        this.recalculateAnchor();
+        
+        // Settle at initial rest position (state represents cord termination / collar attachment point)
+        this.state.x = this.anchor.x + 35;
+        this.state.y = this.anchor.y + this.config.restLength - 5;
+        this.state.vx = 40;
+        this.state.vy = -15;
+
+        this.bindEvents();
+        this.startLoop();
+      }
+
+      applyStyling() {
+        const { size, zIndex } = this.config;
+        this.dom.root.style.zIndex = zIndex;
+
+        // Size hitbox and charm body
+        const hitPad = 26;
+        this.dom.hitbox.style.width = `${size + hitPad}px`;
+        this.dom.hitbox.style.height = `${size + hitPad}px`;
+        this.dom.charmBody.style.width = `${size}px`;
+        this.dom.charmBody.style.height = `${size}px`;
+      }
+
+      recalculateAnchor() {
+        const pos = this.config.anchorPosition;
+        const padding = Math.max(24, Math.min(80, window.innerWidth * 0.05));
+        
+        let ax = window.innerWidth - padding - (this.config.size / 2);
+        let ay = 0; // Ceiling anchor flush at y=0
+
+        if (typeof pos === 'object' && pos !== null) {
+          ax = pos.x ?? ax;
+          ay = pos.y ?? ay;
+        } else if (pos === 'top-left') {
+          ax = padding + (this.config.size / 2);
+        } else if (pos === 'top-center') {
+          ax = window.innerWidth / 2;
+        } else if (pos === 'top-right') {
+          if (window.innerWidth < 640) {
+            ax = window.innerWidth - 38 - (this.config.size / 2);
+          } else {
+            ax = window.innerWidth - 75 - (this.config.size / 2);
+          }
+        }
+
+        const deltaAx = ax - this.anchor.x;
+        const deltaAy = ay - this.anchor.y;
+
+        this.anchor.x = ax;
+        this.anchor.y = ay;
+
+        // If charm already initialized, shift with anchor
+        if (this.state.x !== 0 || this.state.y !== 0) {
+          this.state.x += deltaAx;
+          this.state.y += deltaAy;
+        }
+
+        // Position ceiling mount graphic
+        this.dom.mount.style.left = `${ax}px`;
+        this.dom.mount.style.top = `${ay}px`;
+
+        // Update SVG line root anchor
+        this.dom.tetherLine.setAttribute('x1', ax);
+        this.dom.tetherLine.setAttribute('y1', ay + 6); // slightly below ceiling cap
+      }
+
+      bindEvents() {
+        const hitbox = this.dom.hitbox;
+
+        hitbox.addEventListener('pointerdown', (e) => this.onPointerDown(e), { passive: false });
+        window.addEventListener('pointermove', (e) => this.onPointerMove(e), { passive: false });
+        window.addEventListener('pointerup', (e) => this.onPointerUp(e));
+        window.addEventListener('pointercancel', (e) => this.onPointerUp(e));
+
+        window.addEventListener('resize', () => this.recalculateAnchor());
+
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            this.lastTime = performance.now();
+          }
+        });
+      }
+
+      onPointerDown(e) {
+        e.preventDefault();
+
+        this.state.isDragging = true;
+        this.interaction.activePointerId = e.pointerId;
+        this.dom.hitbox.setPointerCapture(e.pointerId);
+        this.dom.hitbox.classList.add('is-dragging');
+
+        // Capture offset from pointer to attachment coordinates (state.x, state.y)
+        this.interaction.dragOffsetX = this.state.x - e.clientX;
+        this.interaction.dragOffsetY = this.state.y - e.clientY;
+
+        this.state.vx = 0;
+        this.state.vy = 0;
+
+        const now = performance.now();
+        this.interaction.pointerSamples = [{ x: e.clientX, y: e.clientY, time: now }];
+
+        this.createSparkleEffect(e.clientX, e.clientY);
+      }
+
+      onPointerMove(e) {
+        if (!this.state.isDragging || e.pointerId !== this.interaction.activePointerId) return;
+        e.preventDefault();
+
+        const now = performance.now();
+        const targetX = e.clientX + this.interaction.dragOffsetX;
+        const targetY = e.clientY + this.interaction.dragOffsetY;
+
+        // 360 degree omnidirectional boundary guard (keep within viewport + spring reach)
+        const margin = 20;
+        this.state.x = Math.max(margin, Math.min(window.innerWidth - margin, targetX));
+        this.state.y = Math.max(this.anchor.y + 10, Math.min(window.innerHeight - margin, targetY));
+
+        // Keep rolling sample queue for release velocity projection
+        this.interaction.pointerSamples.push({ x: e.clientX, y: e.clientY, time: now });
+        while (this.interaction.pointerSamples.length > 5 && now - this.interaction.pointerSamples[0].time > 80) {
+          this.interaction.pointerSamples.shift();
+        }
+      }
+
+      onPointerUp(e) {
+        if (!this.state.isDragging) return;
+        if (e && e.pointerId !== this.interaction.activePointerId) return;
+
+        this.state.isDragging = false;
+        this.dom.hitbox.classList.remove('is-dragging');
+        try {
+          if (this.interaction.activePointerId !== null) {
+            this.dom.hitbox.releasePointerCapture(this.interaction.activePointerId);
+          }
+        } catch (_) {}
+        this.interaction.activePointerId = null;
+
+        // Compute 2D release velocity vector (vx, vy)
+        const samples = this.interaction.pointerSamples;
+        if (samples.length >= 2) {
+          const newest = samples[samples.length - 1];
+          const oldest = samples[0];
+          const dt = (newest.time - oldest.time) / 1000;
+
+          if (dt > 0.005) {
+            let vx = (newest.x - oldest.x) / dt;
+            let vy = (newest.y - oldest.y) / dt;
+
+            // Clamped max impulse limit for stability
+            const maxSpeed = 2200;
+            const speed = Math.hypot(vx, vy);
+            if (speed > maxSpeed) {
+              vx = (vx / speed) * maxSpeed;
+              vy = (vy / speed) * maxSpeed;
+            }
+
+            this.state.vx = vx;
+            this.state.vy = vy;
+          }
+        }
+        this.interaction.pointerSamples = [];
+      }
+
+      createSparkleEffect(x, y) {
+        const sparkle = document.createElement('div');
+        sparkle.className = 'hanging-eye-sparkle';
+        const size = Math.floor(Math.random() * 22 + 26);
+        sparkle.style.width = `${size}px`;
+        sparkle.style.height = `${size}px`;
+        sparkle.style.left = `${x - size / 2}px`;
+        sparkle.style.top = `${y - size / 2}px`;
+        document.body.appendChild(sparkle);
+        setTimeout(() => sparkle.remove(), 600);
+      }
+
+      // External impulses
+      applyImpulse(fx, fy) {
+        this.state.vx += fx;
+        this.state.vy += fy;
+      }
+
+      flickRandom() {
+        const angle = Math.random() * Math.PI * 2;
+        const mag = Math.random() * 650 + 600;
+        this.applyImpulse(Math.cos(angle) * mag, Math.sin(angle) * mag);
+      }
+
+      swirlOrbit() {
+        // Compute tangent vector perpendicular to current tether line
+        const dx = this.state.x - this.anchor.x;
+        const dy = this.state.y - this.anchor.y;
+        const dist = Math.hypot(dx, dy) || this.config.restLength;
+        const tx = -dy / dist;
+        const ty = dx / dist;
+        const orbitSpeed = 750;
+        this.state.vx = tx * orbitSpeed;
+        this.state.vy = ty * orbitSpeed;
+      }
+
+      pullAndSnap() {
+        // Displace charm far sideways/upwards and release with stored spring elastic tension
+        this.state.x = this.anchor.x - 130;
+        this.state.y = this.anchor.y + 40;
+        this.state.vx = 450;
+        this.state.vy = 200;
+      }
+
+      resetToCenter() {
+        this.state.x = this.anchor.x;
+        this.state.y = this.anchor.y + this.config.restLength;
+        this.state.vx = 0;
+        this.state.vy = 0;
+      }
+
+      startLoop() {
+        const step = (timestamp) => {
+          let dt = (timestamp - this.lastTime) / 1000;
+          this.lastTime = timestamp;
+
+          if (dt > 0.033) dt = 0.033; // clamp to 30 FPS minimum step
+          if (dt <= 0) dt = 0.001;
+
+          this.updatePhysics(dt);
+          this.render();
+          this.updateTelemetry(timestamp);
+
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+
+      updatePhysics(dt) {
+        if (this.state.isDragging) return;
+
+        const { restLength, stiffness, gravity, damping, idleMotion } = this.config;
+
+        // Tether vector from ceiling anchor to charm
+        const dx = this.state.x - this.anchor.x;
+        const dy = this.state.y - this.anchor.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const nx = dx / dist; // Normalized direction vector
+        const ny = dy / dist;
+
+        // Downward gravitational acceleration
+        let ax = 0;
+        let ay = gravity;
+
+        // Elastic string dynamics
+        // When stretched beyond restLength: strong spring tension pulling back towards anchor
+        // When compressed inside restLength: soft restoring force representing flexible string
+        const deltaL = dist - restLength;
+        let tensionMagnitude = 0;
+        if (deltaL > 0) {
+          tensionMagnitude = deltaL * stiffness;
+        } else {
+          // Flexible cord resists compression gently
+          tensionMagnitude = deltaL * (stiffness * 0.22);
+        }
+
+        ax += -tensionMagnitude * nx;
+        ay += -tensionMagnitude * ny;
+
+        // Ambient 2D Lissajous drift (subtle breeze in X and Y)
+        if (idleMotion) {
+          this.state.idleTime += dt;
+          const idleX = Math.sin(this.state.idleTime * 1.35) * 14 + Math.cos(this.state.idleTime * 0.7) * 8;
+          const idleY = Math.cos(this.state.idleTime * 1.1) * 6;
+          ax += idleX;
+          ay += idleY;
+        }
+
+        // Frame-rate independent exponential air friction damping
+        const effectiveDamping = Math.pow(damping, dt * 60);
+        this.state.vx = (this.state.vx + ax * dt) * effectiveDamping;
+        this.state.vy = (this.state.vy + ay * dt) * effectiveDamping;
+
+        // Integrate position
+        this.state.x += this.state.vx * dt;
+        this.state.y += this.state.vy * dt;
+
+        // Screen boundary guards with restitution
+        const radius = this.config.size / 2;
+        if (this.state.x < radius) {
+          this.state.x = radius;
+          this.state.vx *= -0.4;
+        } else if (this.state.x > window.innerWidth - radius) {
+          this.state.x = window.innerWidth - radius;
+          this.state.vx *= -0.4;
+        }
+        if (this.state.y < this.anchor.y + 12) {
+          this.state.y = this.anchor.y + 12;
+          this.state.vy *= -0.2;
+        }
+      }
+
+      render() {
+        const { tiltSensitivity } = this.config;
+
+        // 1. Position Charm Container EXACTLY at cord attachment point (state.x, state.y)
+        const attachX = this.state.x;
+        const attachY = this.state.y;
+        this.dom.charmContainer.style.transform = `translate3d(${attachX}px, ${attachY}px, 0)`;
+
+        // 2. Render Dynamic Omnidirectional SVG Thread from Anchor (ax, ay) to Attachment Loop (state.x, state.y)
+        const anchorX = this.anchor.x;
+        const anchorY = this.anchor.y + 6;
+
+        this.dom.tetherLine.setAttribute('x1', anchorX);
+        this.dom.tetherLine.setAttribute('y1', anchorY);
+        this.dom.tetherLine.setAttribute('x2', attachX);
+        this.dom.tetherLine.setAttribute('y2', attachY);
+
+        // Position intermediate ornamental brass bead at 38% down the dynamic cord
+        const beadRatio = 0.38;
+        const beadX = anchorX + (attachX - anchorX) * beadRatio;
+        const beadY = anchorY + (attachY - anchorY) * beadRatio;
+        this.dom.tetherBead.setAttribute('cx', beadX);
+        this.dom.tetherBead.setAttribute('cy', beadY);
+
+        // 3. Rotational alignment: Hanger arm hangs cleanly along cord vector with slight inertia
+        const dx = attachX - this.anchor.x;
+        const dy = attachY - (this.anchor.y + 6);
+        const tetherAngleDeg = (Math.atan2(dx, Math.max(1, dy)) * 180) / Math.PI;
+
+        // Hanger rotates naturally around (0,0) attachment pivot so the collar eyelet always meets the string
+        this.dom.hanger.style.transform = `translate(-50%, 0) rotate(${tetherAngleDeg.toFixed(2)}deg)`;
+
+        // 4. Tactile 3D Perspective Tilt based on 2D velocity & tether displacement
+        // Pitch (rotateX) responds to vertical velocity / Y displacement
+        // Roll (rotateY) responds to horizontal velocity / X displacement
+        const rollY = Math.max(-28, Math.min(28, this.state.vx * tiltSensitivity));
+        const pitchX = Math.max(-28, Math.min(28, -this.state.vy * tiltSensitivity));
+
+        this.dom.charmBody.style.transform = `rotateX(${pitchX.toFixed(2)}deg) rotateY(${rollY.toFixed(2)}deg)`;
+      }
+
+      updateTelemetry(timestamp) {
+        // FPS counter
+        this.fpsCounter.count++;
+        if (timestamp - this.fpsCounter.lastCheck >= 500) {
+          this.fpsCounter.fps = Math.round((this.fpsCounter.count * 1000) / (timestamp - this.fpsCounter.lastCheck));
+          this.fpsCounter.count = 0;
+          this.fpsCounter.lastCheck = timestamp;
+          if (this.telemetry.fps) this.telemetry.fps.textContent = `${this.fpsCounter.fps} FPS`;
+        }
+
+        const dx = Math.round(this.state.x - this.anchor.x);
+        const dy = Math.round(this.state.y - this.anchor.y);
+        const speed = Math.round(Math.hypot(this.state.vx, this.state.vy));
+        const angleDeg = ((Math.atan2(dx, Math.max(1, dy)) * 180) / Math.PI).toFixed(1);
+
+        if (this.telemetry.pos) {
+          this.telemetry.pos.textContent = `${dx >= 0 ? '+' : ''}${dx}, ${dy}px`;
+        }
+        if (this.telemetry.velocity) {
+          this.telemetry.velocity.textContent = `${speed} px/s`;
+        }
+        if (this.telemetry.angle) {
+          this.telemetry.angle.textContent = `${angleDeg > 0 ? '+' : ''}${angleDeg}°`;
+        }
+        if (this.telemetry.state) {
+          if (this.state.isDragging) {
+            this.telemetry.state.textContent = 'Dragging (2D)';
+            this.telemetry.state.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 inline-block';
+          } else if (speed > 25 || Math.abs(dx) > 15) {
+            this.telemetry.state.textContent = 'Swinging (360°)';
+            this.telemetry.state.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 inline-block';
+          } else {
+            this.telemetry.state.textContent = 'Idle Drift';
+            this.telemetry.state.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400 inline-block';
+          }
+        }
+      }
+
+      updateConfig(key, value) {
+        this.config[key] = value;
+        this.applyStyling();
+        this.recalculateAnchor();
+      }
+    }
+
+    // ==========================================================================
+    // INITIALIZATION & PLAYGROUND EVENT HANDLERS
+    // ==========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      const eyeComponent = new HangingEvilEye2D({
+        size: 68,
+        restLength: 140,
+        stiffness: 42,
+        gravity: 980,
+        damping: 0.988,
+        tiltSensitivity: 0.045,
+        anchorPosition: 'top-right'
+      });
+
+      // Quick Action Buttons
+      document.getElementById('btn-impulse-random').addEventListener('click', () => eyeComponent.flickRandom());
+      document.getElementById('btn-impulse-swirl').addEventListener('click', () => eyeComponent.swirlOrbit());
+      document.getElementById('btn-impulse-snap').addEventListener('click', () => eyeComponent.pullAndSnap());
+      document.getElementById('btn-reset-charm').addEventListener('click', () => eyeComponent.resetToCenter());
+
+      // Live Playground Sliders
+      const setupSlider = (id, key, valId, unit = '', parser = parseFloat) => {
+        const input = document.getElementById(id);
+        const display = document.getElementById(valId);
+        input.addEventListener('input', (e) => {
+          const val = parser(e.target.value);
+          display.textContent = `${val}${unit}`;
+          eyeComponent.updateConfig(key, val);
+        });
+      };
+
+      setupSlider('cfg-restLength', 'restLength', 'val-restLength', 'px');
+      setupSlider('cfg-stiffness', 'stiffness', 'val-stiffness');
+      setupSlider('cfg-gravity', 'gravity', 'val-gravity');
+      setupSlider('cfg-damping', 'damping', 'val-damping');
+      setupSlider('cfg-tilt', 'tiltSensitivity', 'val-tilt');
+      setupSlider('cfg-size', 'size', 'val-size', 'px');
+
+      document.getElementById('cfg-idle').addEventListener('change', (e) => {
+        eyeComponent.updateConfig('idleMotion', e.target.checked);
+      });
+
+      // Anchor Position Switchers
+      const posButtons = document.querySelectorAll('.btn-pos-switch');
+      posButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          posButtons.forEach(b => {
+            b.classList.remove('bg-blue-600', 'text-white', 'shadow-sm');
+            b.classList.add('bg-slate-800', 'text-slate-300');
+          });
+          btn.classList.add('bg-blue-600', 'text-white', 'shadow-sm');
+          btn.classList.remove('bg-slate-800', 'text-slate-300');
+          eyeComponent.updateConfig('anchorPosition', btn.dataset.anchor);
+        });
+      });
+
+      // Reset Defaults
+      document.getElementById('btn-reset-config').addEventListener('click', () => {
+        document.getElementById('cfg-restLength').value = 140;
+        document.getElementById('val-restLength').textContent = '140px';
+        document.getElementById('cfg-stiffness').value = 42;
+        document.getElementById('val-stiffness').textContent = '42';
+        document.getElementById('cfg-gravity').value = 980;
+        document.getElementById('val-gravity').textContent = '980';
+        document.getElementById('cfg-damping').value = 0.988;
+        document.getElementById('val-damping').textContent = '0.988';
+        document.getElementById('cfg-tilt').value = 0.045;
+        document.getElementById('val-tilt').textContent = '0.045';
+        document.getElementById('cfg-size').value = 68;
+        document.getElementById('val-size').textContent = '68px';
+        document.getElementById('cfg-idle').checked = true;
+
+        eyeComponent.config.restLength = 140;
+        eyeComponent.config.stiffness = 42;
+        eyeComponent.config.gravity = 980;
+        eyeComponent.config.damping = 0.988;
+        eyeComponent.config.tiltSensitivity = 0.045;
+        eyeComponent.config.size = 68;
+        eyeComponent.config.idleMotion = true;
+        eyeComponent.applyStyling();
+        eyeComponent.recalculateAnchor();
+      });
+    });
+  </script>
+</body></html>
